@@ -1,0 +1,16 @@
+project_id = "vlyjdhbblbqeqrdaxglc"
+
+[functions.firecrawl-scan]
+verify_jwt = false
+
+[functions.analyze-threats]
+verify_jwt = false
+
+[functions.analyze-surface]
+verify_jwt = false
+
+[functions.elasticsearch-sync]
+verify_jwt = false
+
+[functions.elasticsearch-search]
+verify_jwt = false
