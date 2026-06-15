@@ -1,5 +1,11 @@
 version: '3.8'
 
+networks:
+  coolify:
+    external: true
+  omniguard_internal:
+    driver: bridge
+
 services:
   postgres:
     image: postgres:15
@@ -8,10 +14,10 @@ services:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: adminpassword
       POSTGRES_DB: omniguard
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - omniguard_internal
     restart: unless-stopped
 
   elasticsearch:
@@ -21,10 +27,10 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    ports:
-      - "9200:9200"
     volumes:
       - es_data:/usr/share/elasticsearch/data
+    networks:
+      - omniguard_internal
     restart: unless-stopped
 
   backend:
@@ -37,11 +43,11 @@ services:
     environment:
       - ELASTICSEARCH_URL=http://elasticsearch:9200
       - DATABASE_URL=postgresql+psycopg://admin:adminpassword@postgres:5432/omniguard
-    ports:
-      - "8000:8000"
     depends_on:
       - postgres
       - elasticsearch
+    networks:
+      - omniguard_internal
     restart: unless-stopped
 
   frontend:
@@ -49,10 +55,22 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: omniguard_frontend
-    ports:
-      - "80:80"
     depends_on:
       - backend
+    networks:
+      - coolify
+      - omniguard_internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.omniguard-http.rule=Host(`omniguard.imrnes.team`)"
+      - "traefik.http.routers.omniguard-http.entrypoints=http"
+      - "traefik.http.routers.omniguard-http.middlewares=redirect-to-https"
+      - "traefik.http.routers.omniguard-https.rule=Host(`omniguard.imrnes.team`)"
+      - "traefik.http.routers.omniguard-https.entrypoints=https"
+      - "traefik.http.routers.omniguard-https.tls=true"
+      - "traefik.http.routers.omniguard-https.tls.certresolver=letsencrypt"
+      - "traefik.http.services.omniguard.loadbalancer.server.port=80"
+      - "traefik.docker.network=coolify"
     restart: unless-stopped
 
 volumes:
