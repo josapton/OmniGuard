@@ -8,6 +8,9 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: Production
+      url: https://omniguard.imrnes.team
     steps:
       - name: Deploy to VPS via SSH
         uses: appleboy/ssh-action@master
