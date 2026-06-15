@@ -3,10 +3,21 @@ import re
 import json
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
+from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import PromptTemplate
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+ANTHROPIC_BASE_URL = os.getenv("ANTHROPIC_BASE_URL")
+
+anthropic_llm = ChatAnthropic(
+    model_name="premium",
+    api_key=ANTHROPIC_API_KEY,
+    base_url=ANTHROPIC_BASE_URL,
+    temperature=0,
+    max_retries=0
+) if ANTHROPIC_API_KEY else None
 
 gemini_llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash", 
@@ -22,12 +33,21 @@ groq_llm = ChatGroq(
 ) if GROQ_API_KEY else None
 
 # We will handle fallbacks manually in a wrapper function
-llm = gemini_llm or groq_llm  # Default LLM for non-critical paths if needed
+llm = anthropic_llm or gemini_llm or groq_llm  # Default LLM for non-critical paths if needed
 
 async def invoke_llm_with_fallback(prompt_template, kwargs):
-    """Manually invoke Gemini first, and fall back to Groq if it fails."""
+    """Manually invoke Anthropic first, fall back to Gemini, then Groq."""
     last_error = None
     
+    # Try Anthropic
+    if anthropic_llm:
+        try:
+            chain = prompt_template | anthropic_llm
+            return await chain.ainvoke(kwargs)
+        except Exception as e:
+            print(f"[LLM] Anthropic failed: {e}. Falling back to Gemini/Groq...")
+            last_error = e
+
     # Try Gemini
     if gemini_llm:
         try:
@@ -82,8 +102,11 @@ async def predict_threat_model(asset_data: dict, cve_data: list):
     )
     
     try:
-        response = await invoke_llm_with_fallback(prompt, {"asset_data": str(asset_data), "cve_data": str(cve_data)})
-        return response.content
+        res = await invoke_llm_with_fallback(prompt, {"asset_data": str(asset_data), "cve_data": str(cve_data)})
+        content = res.content
+        if isinstance(content, list):
+            content = "\n".join([item.get("text", "") for item in content if item.get("type") == "text"])
+        return content
     except Exception as e:
         return {"error": str(e)}
 
@@ -104,8 +127,11 @@ async def generate_auto_remediation(vulnerability_details: dict, target_os: str 
     )
     
     try:
-        response = await invoke_llm_with_fallback(prompt, {"vuln_details": str(vulnerability_details), "target_os": target_os})
-        return response.content
+        res = await invoke_llm_with_fallback(prompt, {"vuln_details": str(vulnerability_details), "target_os": target_os})
+        content = res.content
+        if isinstance(content, list):
+            content = "\n".join([item.get("text", "") for item in content if item.get("type") == "text"])
+        return content
     except Exception as e:
         return {"error": str(e)}
 
@@ -126,8 +152,11 @@ async def simulate_attack_path(topology_data: dict):
     )
     
     try:
-        response = await invoke_llm_with_fallback(prompt, {"topology_data": str(topology_data)})
-        return response.content
+        res = await invoke_llm_with_fallback(prompt, {"topology_data": str(topology_data)})
+        content = res.content
+        if isinstance(content, list):
+            content = "\n".join([item.get("text", "") for item in content if item.get("type") == "text"])
+        return content
     except Exception as e:
         return {"error": str(e)}
 
@@ -148,8 +177,11 @@ async def analyze_osint_data(raw_text: str):
     )
     
     try:
-        response = await invoke_llm_with_fallback(prompt, {"raw_text": raw_text})
-        return response.content
+        res = await invoke_llm_with_fallback(prompt, {"raw_text": raw_text})
+        content = res.content
+        if isinstance(content, list):
+            content = "\n".join([item.get("text", "") for item in content if item.get("type") == "text"])
+        return content
     except Exception as e:
         return {"error": str(e)}
 
@@ -170,7 +202,10 @@ async def chat_with_copilot(query: str, context: str = ""):
     )
     
     try:
-        response = await invoke_llm_with_fallback(prompt, {"query": query, "context": context})
-        return response.content
+        res = await invoke_llm_with_fallback(prompt, {"query": query, "context": context})
+        content = res.content
+        if isinstance(content, list):
+            content = "\n".join([item.get("text", "") for item in content if item.get("type") == "text"])
+        return content
     except Exception as e:
         return {"error": str(e)}
