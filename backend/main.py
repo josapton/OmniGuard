@@ -10,6 +10,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from dependencies import verify_jwt
 from contextlib import asynccontextmanager
 from scheduler import start_scheduler, stop_scheduler
+from database import engine
+import models
+
+# Create database tables if they don't exist
+models.Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
