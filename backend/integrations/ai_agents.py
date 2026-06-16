@@ -68,8 +68,14 @@ async def invoke_llm_with_fallback(prompt_template, kwargs):
             
     raise Exception(f"All LLMs failed. Last error: {last_error}")
 
-def extract_json(response_text: str) -> dict:
+def extract_json(response_text) -> dict:
     """Safely extract and parse JSON from a markdown string."""
+    if isinstance(response_text, list):
+        response_text = "\n".join([item.get("text", "") for item in response_text if isinstance(item, dict) and item.get("type") == "text"])
+        
+    if not isinstance(response_text, str):
+        response_text = str(response_text)
+
     try:
         # First try parsing directly
         return json.loads(response_text)
