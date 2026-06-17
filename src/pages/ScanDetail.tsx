@@ -8,7 +8,7 @@ import { getScan, getFindings, generateReport, type Scan, type Finding } from "@
 import { SeverityBadge, RiskScoreGauge, StatusBadge } from "@/components/SeverityBadge";
 import { exportReportAsPdf } from "@/lib/pdf-export";
 import { AiChatPanel, renderMarkdown } from "@/components/AiChatPanel";
-import { Globe, FileCode, Link2, FormInput, Cpu, Shield, Loader2, FileText, AlertTriangle, ExternalLink, RefreshCw, Code, Download, Info, Check, X as XIcon, Copy } from "lucide-react";
+import { Globe, FileCode, Link2, FormInput, Cpu, Shield, Loader2, FileText, AlertTriangle, ExternalLink, RefreshCw, Code, Download, Info, Check, X as XIcon, Copy, Brain, Activity, Terminal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { motion } from "framer-motion";
@@ -293,6 +293,9 @@ const ScanDetail = () => {
                 </TabsTrigger>
                 <TabsTrigger value="report" className="gap-1 text-xs">
                   <FileText className="h-3 w-3" /> AI Report
+                </TabsTrigger>
+                <TabsTrigger value="intelligence" className="gap-1 text-xs">
+                  <Brain className="h-3 w-3 text-primary" /> Deep Intel
                 </TabsTrigger>
                 <TabsTrigger value="raw" className="gap-1 text-xs">
                   <Code className="h-3 w-3" /> Raw Data
@@ -626,6 +629,169 @@ const ScanDetail = () => {
                     </CardContent>
                   </Card>
                 )}
+              </TabsContent>
+
+              {/* Intelligence Tab */}
+              <TabsContent value="intelligence" className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  
+                  {/* Threat Model */}
+                  {enrichment.threat_model && (
+                    <Card className="bg-card border-border">
+                      <CardHeader className="pb-3 border-b border-border/50">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <Shield className="h-4 w-4 text-severity-critical" /> Threat Model Predictions
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-4">
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center bg-secondary/30 p-2 rounded-md">
+                            <span className="text-xs text-muted-foreground font-mono">Predictive Risk Score</span>
+                            <span className="font-bold text-severity-high">{enrichment.threat_model.risk_score || "N/A"}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground italic mb-2">"{enrichment.threat_model.rationale || "No rationale provided."}"</p>
+                          {(enrichment.threat_model.likely_attack_paths || []).map((v: any, i: number) => (
+                            <div key={i} className="p-3 bg-secondary/20 border border-border/50 rounded-md">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-semibold text-sm">{v.vector}</span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase ${v.probability === 'High' ? 'bg-severity-high/20 text-severity-high' : 'bg-primary/20 text-primary'}`}>{v.probability}</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1"><span className="text-muted-foreground/70">Escalation:</span> {v.escalation}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Exposure Simulation */}
+                  {enrichment.attack_paths && (
+                    <Card className="bg-card border-border">
+                      <CardHeader className="pb-3 border-b border-border/50">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <Activity className="h-4 w-4 text-severity-high" /> Attack Path Simulation
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-4">
+                        <div className="space-y-4 relative before:absolute before:inset-0 before:ml-[11px] before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent">
+                          {enrichment.attack_paths.entry_point && (
+                            <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                              <div className="flex items-center justify-center w-6 h-6 rounded-full border border-border bg-card shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow shadow-primary/20">
+                                <div className="w-2 h-2 rounded-full bg-primary"></div>
+                              </div>
+                              <div className="w-[calc(100%-3rem)] md:w-[calc(50%-1.5rem)] p-3 rounded border border-border/50 bg-secondary/20">
+                                <div className="font-semibold text-xs mb-1 text-primary">1. Entry Point</div>
+                                <div className="text-xs text-muted-foreground">{enrichment.attack_paths.entry_point}</div>
+                              </div>
+                            </div>
+                          )}
+                          {enrichment.attack_paths.lateral_movement && (
+                            <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                              <div className="flex items-center justify-center w-6 h-6 rounded-full border border-border bg-card shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
+                                <div className="w-2 h-2 rounded-full bg-muted-foreground/50"></div>
+                              </div>
+                              <div className="w-[calc(100%-3rem)] md:w-[calc(50%-1.5rem)] p-3 rounded border border-border/50 bg-secondary/20">
+                                <div className="font-semibold text-xs mb-1 text-primary">2. Lateral Movement</div>
+                                <div className="text-xs text-muted-foreground">{enrichment.attack_paths.lateral_movement}</div>
+                              </div>
+                            </div>
+                          )}
+                          {enrichment.attack_paths.privilege_escalation && (
+                            <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                              <div className="flex items-center justify-center w-6 h-6 rounded-full border border-border bg-card shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
+                                <div className="w-2 h-2 rounded-full bg-muted-foreground/50"></div>
+                              </div>
+                              <div className="w-[calc(100%-3rem)] md:w-[calc(50%-1.5rem)] p-3 rounded border border-border/50 bg-secondary/20">
+                                <div className="font-semibold text-xs mb-1 text-primary">3. Privilege Escalation</div>
+                                <div className="text-xs text-muted-foreground">{enrichment.attack_paths.privilege_escalation}</div>
+                              </div>
+                            </div>
+                          )}
+                          {enrichment.attack_paths.impact && (
+                            <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                              <div className="flex items-center justify-center w-6 h-6 rounded-full border border-border bg-card shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow shadow-severity-critical/20">
+                                <div className="w-2 h-2 rounded-full bg-severity-critical"></div>
+                              </div>
+                              <div className="w-[calc(100%-3rem)] md:w-[calc(50%-1.5rem)] p-3 rounded border border-severity-critical/30 bg-severity-critical/10">
+                                <div className="font-semibold text-xs mb-1 text-severity-critical flex justify-between">
+                                  <span>4. Ultimate Impact</span>
+                                  <span className="uppercase text-[9px]">{enrichment.attack_paths.mitigation_priority || 'High'} PRIORITY</span>
+                                </div>
+                                <div className="text-xs text-muted-foreground">{enrichment.attack_paths.impact}</div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                  
+                  {/* Auto Remediation */}
+                  {enrichment.remediation && (
+                    <Card className="bg-card border-border md:col-span-2">
+                      <CardHeader className="pb-3 border-b border-border/50">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <Terminal className="h-4 w-4 text-primary" /> Auto-Remediation Script (Critical Finding)
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-4">
+                        <div className="bg-black/80 text-green-400 p-4 rounded-md font-mono text-xs overflow-x-auto whitespace-pre-wrap border border-border/50">
+                          {typeof enrichment.remediation === 'string' ? enrichment.remediation : enrichment.remediation.script || enrichment.remediation.raw_text || "No script provided."}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Deep OSINT */}
+                  {enrichment.osint && (
+                    <Card className="bg-card border-border md:col-span-2">
+                      <CardHeader className="pb-3 border-b border-border/50">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <Brain className="h-4 w-4 text-primary" /> Deep OSINT Analysis
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div className="bg-secondary/20 p-3 rounded border border-border/50">
+                            <span className="text-[10px] uppercase text-muted-foreground tracking-wider block mb-1">Threat Level</span>
+                            <span className="font-bold text-severity-high">{enrichment.osint.threat_level || "Unknown"}</span>
+                          </div>
+                          <div className="bg-secondary/20 p-3 rounded border border-border/50">
+                            <span className="text-[10px] uppercase text-muted-foreground tracking-wider block mb-1">Summary</span>
+                            <span className="text-xs text-muted-foreground">{enrichment.osint.summary || "No summary provided."}</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="bg-secondary/10 p-3 rounded border border-border/30">
+                            <span className="text-xs font-semibold text-primary block mb-2">Threat Actors</span>
+                            <ul className="list-disc pl-4 text-xs text-muted-foreground space-y-1">
+                              {(enrichment.osint.threat_actors || []).map((actor: string, i: number) => (
+                                <li key={i}>{actor}</li>
+                              ))}
+                            </ul>
+                          </div>
+                          <div className="bg-secondary/10 p-3 rounded border border-border/30">
+                            <span className="text-xs font-semibold text-primary block mb-2">Targeted Entities</span>
+                            <ul className="list-disc pl-4 text-xs text-muted-foreground space-y-1">
+                              {(enrichment.osint.targeted_entities || []).map((entity: string, i: number) => (
+                                <li key={i}>{entity}</li>
+                              ))}
+                            </ul>
+                          </div>
+                          <div className="bg-secondary/10 p-3 rounded border border-border/30">
+                            <span className="text-xs font-semibold text-severity-high block mb-2">Extracted IoCs</span>
+                            <ul className="list-disc pl-4 text-xs text-muted-foreground space-y-1 font-mono break-all">
+                              {(enrichment.osint.extracted_iocs || []).map((ioc: string, i: number) => (
+                                <li key={i}>{ioc}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                </div>
               </TabsContent>
 
               {/* Raw Data Tab */}

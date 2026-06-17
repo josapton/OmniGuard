@@ -6,6 +6,8 @@ import { Activity, Server, Network, Lock, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { fetchWithAuth } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { ScanSelector } from "@/components/ScanSelector";
+import { Scan, Finding } from "@/lib/api";
 
 export default function ExposureManagement() {
   const { toast } = useToast();
@@ -16,6 +18,26 @@ export default function ExposureManagement() {
   const [ports, setPorts] = useState("80, 443, 22");
   const [services, setServices] = useState("Apache, SSH, MySQL");
   const [vulns, setVulns] = useState("CVE-2021-41773");
+
+  const handleScanSelected = (scan: Scan, findings: Finding[]) => {
+    // Try to get an IP from raw_crawl_data or just use domain
+    const scanIp = scan.domain; 
+    setIp(scanIp);
+    
+    // Parse technologies and ports if available
+    if (scan.technologies && scan.technologies.length > 0) {
+      setServices(scan.technologies.join(", "));
+    }
+    
+    // Map findings to CVEs (taking finding titles that might contain CVE)
+    if (findings && findings.length > 0) {
+      const cves = findings
+        .map(f => f.title.match(/CVE-\d{4}-\d+/)?.[0] || f.title)
+        .slice(0, 5) // limit to 5
+        .join(", ");
+      if (cves) setVulns(cves);
+    }
+  };
 
   const handleSimulate = async () => {
     setLoading(true);
@@ -63,6 +85,9 @@ export default function ExposureManagement() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            
+            <ScanSelector onScanSelected={handleScanSelected} />
+
             <div className="space-y-2">
               <label className="text-xs font-medium text-foreground">Target IP Address</label>
               <input type="text" value={ip} onChange={(e) => setIp(e.target.value)} className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary font-mono" />

@@ -8,6 +8,8 @@ import { fetchWithAuth, saveThreatModel } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { exportToPDF } from "@/lib/exportToPDF";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScanSelector } from "@/components/ScanSelector";
+import { Scan, Finding } from "@/lib/api";
 
 export default function ThreatModeling() {
   const { toast } = useToast();
@@ -18,6 +20,15 @@ export default function ThreatModeling() {
 
   const [assetName, setAssetName] = useState("Apache Web Server");
   const [cpeName, setCpeName] = useState("cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*");
+
+  const handleScanSelected = (scan: Scan, findings: Finding[]) => {
+    setAssetName(scan.domain);
+    // Try to guess a CPE based on technologies
+    if (scan.technologies && scan.technologies.length > 0) {
+      const tech = scan.technologies[0].toLowerCase();
+      setCpeName(`cpe:2.3:a:${tech}:${tech}:*:*:*:*:*:*:*`);
+    }
+  };
 
   const handlePredict = async () => {
     setLoading(true);
@@ -83,6 +94,9 @@ export default function ThreatModeling() {
             <p className="text-sm text-muted-foreground mb-4">
               Run an autonomous AI simulation to predict how an attacker might chain vulnerabilities together based on real CVE data.
             </p>
+
+            <ScanSelector onScanSelected={handleScanSelected} />
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-xs font-medium text-foreground">Asset Name</label>

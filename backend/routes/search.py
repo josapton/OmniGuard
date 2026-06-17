@@ -49,8 +49,8 @@ async def search_elastic(req: SearchRequest):
             "from": req.from_
         }
 
-        # Send to Elasticsearch
-        res = es_client.search(index=req.index, body=body)
+        # Send to Elasticsearch, ignoring missing indices
+        res = es_client.search(index=req.index, body=body, ignore_unavailable=True)
 
         # Format to match frontend ElasticSearchResponse interface
         hits = []

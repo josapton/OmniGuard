@@ -3,6 +3,7 @@ from pydantic import BaseModel
 import json
 from integrations.ai_agents import invoke_llm_with_fallback, extract_json
 from langchain_core.prompts import PromptTemplate
+from database import supabase
 
 router = APIRouter(
     prefix="/api/policy",
@@ -16,9 +17,22 @@ class EvaluateRequest(BaseModel):
 async def evaluate_domain(req: EvaluateRequest):
     """
     Evaluates whether a domain is allowed to be scanned.
-    Blocks government (.gov, .go.id) and military (.mil) domains by default
-    unless an explicit bypass is provided (not implemented yet).
+    Checks user-defined policies first, then falls back to AI agent.
     """
+    if supabase:
+        try:
+            policy_data = supabase.table("domain_policies").select("*").eq("domain", req.domain).execute()
+            if policy_data.data:
+                user_policy = policy_data.data[0]
+                is_allowed = user_policy.get("policy_type") == "allow"
+                return {
+                    "allowed": is_allowed,
+                    "policy": user_policy.get("policy_type"),
+                    "reason": f"Explicitly {user_policy.get('policy_type')}ed by user policy."
+                }
+        except Exception as e:
+            print(f"Failed to check user domain policy: {e}")
+
     prompt = PromptTemplate.from_template(
         "You are an AI Domain Policy Agent for a cybersecurity scanning platform.\n"
         "Evaluate the following domain: {domain}\n\n"

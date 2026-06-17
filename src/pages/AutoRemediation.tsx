@@ -6,24 +6,40 @@ import { Wrench, CheckCircle, TerminalSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { fetchWithAuth } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { ScanSelector } from "@/components/ScanSelector";
+import { Scan, Finding } from "@/lib/api";
 
 export default function AutoRemediation() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [vulnDetails, setVulnDetails] = useState("CVE-2023-38408 (OpenSSH forwarded ssh-agent RCE)");
   const [targetOs, setTargetOs] = useState("linux");
-  const [remediationScript, setRemediationScript] = useState<string | null>(null);
+  const [scriptResult, setScriptResult] = useState<any>(null);
   const [copied, setCopied] = useState(false);
+
+  const handleScanSelected = (scan: Scan, findings: Finding[]) => {
+    if (findings && findings.length > 0) {
+      // Find the most critical finding
+      const sorted = [...findings].sort((a, b) => {
+        const severityScores: Record<string, number> = { "Critical": 4, "High": 3, "Medium": 2, "Low": 1 };
+        return (severityScores[b.severity] || 0) - (severityScores[a.severity] || 0);
+      });
+      const topVuln = sorted[0];
+      setVulnDetails(`${topVuln.title}\n\n${topVuln.description}`);
+    } else {
+      setVulnDetails(`No vulnerabilities found for ${scan.domain}. Try another scan.`);
+    }
+  };
 
   const handleGenerate = async () => {
     setLoading(true);
-    setRemediationScript(null);
+    setScriptResult(null);
     try {
       const data = await fetchWithAuth("/remediation/generate", {
         method: "POST",
         body: JSON.stringify({ vulnerability_details: vulnDetails, target_os: targetOs })
       });
-      setRemediationScript(data.script);
+      setScriptResult(data);
     } catch (error: any) {
       console.error("Failed to generate script:", error);
       toast({ title: "Generation Failed", description: error.message, variant: "destructive" });
@@ -56,6 +72,7 @@ export default function AutoRemediation() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <ScanSelector onScanSelected={handleScanSelected} />
             <div className="space-y-2">
               <label className="text-xs font-medium text-foreground">Vulnerability Details</label>
               <textarea 
@@ -89,28 +106,27 @@ export default function AutoRemediation() {
                 <TerminalSquare className="text-primary h-5 w-5" />
                 Remediation Script
               </CardTitle>
-              {remediationScript && (
-                <Button variant="outline" size="sm" onClick={handleCopy} className="h-8 border-border">
-                  {copied ? <CheckCircle className="h-4 w-4 text-success mr-2" /> : null}
-                  {copied ? "Copied" : "Copy Code"}
-                </Button>
-              )}
             </div>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground space-y-4">
-                 <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                 <p className="text-sm font-mono animate-pulse">AI is synthesizing defense scripts...</p>
-              </div>
-            ) : remediationScript ? (
-              <div className="bg-black/40 rounded-lg p-4 font-mono text-sm overflow-x-auto whitespace-pre-wrap text-green-400 border border-border/50 shadow-inner">
-                {remediationScript}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground/50 border border-dashed border-border rounded-lg">
-                <TerminalSquare className="h-10 w-10 mb-2 opacity-50" />
+              <div className="flex items-center justify-center h-full text-muted-foreground flex-col gap-2">
+                <TerminalSquare className="h-8 w-8 opacity-20" />
                 <p className="text-sm">Click generate to build automated defenses.</p>
+              </div>
+            ) : null}
+            
+            {scriptResult && !loading && (
+              <div className="relative h-full font-mono text-sm text-green-400 bg-black/80 rounded-md p-4 overflow-auto border border-border/50">
+                <Button 
+                  onClick={handleCopy} 
+                  variant="ghost" 
+                  size="icon" 
+                  className="absolute top-2 right-2 h-8 w-8 text-muted-foreground hover:text-foreground"
+                >
+                  {copied ? <CheckCircle className="h-4 w-4 text-green-500" /> : <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>}
+                </Button>
+                <pre className="whitespace-pre-wrap">{scriptResult.script || scriptResult.raw_text || "No script generated."}</pre>
               </div>
             )}
           </CardContent>
