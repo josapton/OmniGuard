@@ -120,14 +120,25 @@ export async function evaluateDomain(domain: string): Promise<{ allowed: boolean
   }
 }
 
-export async function getUserQuota(): Promise<{ scansToday: number; dailyLimit: number } | null> {
-  try {
-    const data = await fetchWithAuth("/scans/quota");
-    return data;
-  } catch (e) {
-    console.error("Failed to fetch quota", e);
+export async function getUserQuota(): Promise<{ scansToday: number; dailyLimit: number }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { scansToday: 0, dailyLimit: 10 };
+
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const { count, error } = await supabase
+    .from('scans')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .gte('created_at', yesterday.toISOString());
+
+  if (error) {
+    console.error("Error fetching quota:", error);
     return { scansToday: 0, dailyLimit: 10 };
   }
+
+  return { scansToday: count || 0, dailyLimit: 10 };
 }
 
 export async function generateReport(scanId: string): Promise<string> {

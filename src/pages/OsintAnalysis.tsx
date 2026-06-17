@@ -8,6 +8,8 @@ import { fetchWithAuth, saveOsintAnalysis } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { exportToPDF } from "@/lib/exportToPDF";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScanSelector } from "@/components/ScanSelector";
+import { Scan, Finding } from "@/lib/api";
 
 export default function OsintAnalysis() {
   const { toast } = useToast();
@@ -16,6 +18,15 @@ export default function OsintAnalysis() {
   const [isExporting, setIsExporting] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
   const [rawText, setRawText] = useState("Kami berhasil membobol server database rumah sakit X semalam. Menggunakan celah RCE di web admin. Ada 50.000 data pasien beserta nomor kartu kredit. Jika tidak bayar 50 Bitcoin, besok data ini kami sebar. Hubungi kami di Telegram @HackerOps. IP Server mereka: 192.168.10.5");
+
+  const handleScanSelected = (scan: Scan, findings: Finding[]) => {
+    // We create a structured blob of context from the scan to use as "raw text"
+    // Since DeepOSINT usually works on raw dark web leaks, this provides a starting point
+    // for the AI to find matching entities.
+    const ipAddress = (scan as any).ip_address || "Unknown";
+    const context = `TARGET PROFILE:\nDomain: ${scan.domain}\nIP Address: ${ipAddress}\nTechnologies: ${scan.technologies?.join(", ") || "Unknown"}\nRisk Score: ${scan.risk_score}\n\nPlease search for leaks, mentions, or threat actor chatter related to these indicators.`;
+    setRawText(context);
+  };
 
   const handleAnalyze = async () => {
     setLoading(true);
@@ -84,7 +95,8 @@ export default function OsintAnalysis() {
                 Raw Data Input
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex-1 flex flex-col gap-4">
+            <CardContent className="space-y-4">
+              <ScanSelector onScanSelected={handleScanSelected} />
               <textarea
                 className="w-full flex-1 bg-secondary border border-border rounded-md p-4 text-sm font-mono text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary min-h-[250px] resize-none"
                 value={rawText}

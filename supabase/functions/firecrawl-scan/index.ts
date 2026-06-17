@@ -212,7 +212,7 @@ serve(async (req) => {
     const rawFindings = generateFindings(parsedData, technologies, domain);
 
     // CVE lookup for detected technologies
-    let cveFindings: typeof rawFindings = [];
+    const cveFindings: typeof rawFindings = [];
     try {
       const cveResp = await fetch(`${supabaseUrl}/functions/v1/cve-lookup`, {
         method: 'POST',

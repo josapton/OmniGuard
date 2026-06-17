@@ -57,6 +57,8 @@ services:
     container_name: omniguard_frontend
     depends_on:
       - backend
+    ports:
+      - "80:80"
     networks:
       - coolify
       - omniguard_internal

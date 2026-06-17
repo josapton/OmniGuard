@@ -104,7 +104,14 @@ async def predict_threat_model(asset_data: dict, cve_data: list):
         "and calculate a Predictive Risk Score (0-100).\n\n"
         "Asset Data: {asset_data}\n"
         "CVE Data: {cve_data}\n\n"
-        "Provide your analysis in JSON format with keys: 'risk_score', 'likely_attack_paths', 'rationale'."
+        "Provide your analysis STRICTLY in the following JSON format without any markdown blocks:\n"
+        "{{\n"
+        "  \"risk_score\": 85,\n"
+        "  \"likely_attack_paths\": [\n"
+        "    {{\"vector\": \"XSS\", \"probability\": \"High\", \"escalation\": \"Stolen session\"}}\n"
+        "  ],\n"
+        "  \"rationale\": \"Explanation here\"\n"
+        "}}"
     )
     
     try:
@@ -154,7 +161,14 @@ async def simulate_attack_path(topology_data: dict):
         "Simulate a theoretical attack path that a hacker might take to compromise the system. "
         "Describe the steps, the vulnerabilities they would exploit, and the ultimate impact.\n\n"
         "Topology Data: {topology_data}\n\n"
-        "Provide your analysis in JSON format with keys: 'entry_point', 'lateral_movement', 'privilege_escalation', 'impact', 'mitigation_priority'."
+        "Provide your analysis STRICTLY in the following JSON format without any markdown blocks:\n"
+        "{{\n"
+        "  \"entry_point\": \"Description of entry point\",\n"
+        "  \"lateral_movement\": \"Description of lateral movement\",\n"
+        "  \"privilege_escalation\": \"Description of privilege escalation\",\n"
+        "  \"impact\": \"Description of ultimate impact\",\n"
+        "  \"mitigation_priority\": \"High\"\n"
+        "}}"
     )
     
     try:
@@ -179,7 +193,14 @@ async def analyze_osint_data(raw_text: str):
         "Extract key Indicators of Compromise (IoCs), identify the threat actors involved, "
         "determine the targeted entities or industries, and summarize the overall threat level.\n\n"
         "Raw Data Snippet: {raw_text}\n\n"
-        "Provide your analysis in JSON format with keys: 'threat_level' (Low/Medium/High/Critical), 'threat_actors' (list of strings), 'targeted_entities' (list of strings), 'extracted_iocs' (list of strings/IPs/Hashes), 'summary'."
+        "Provide your analysis STRICTLY in the following JSON format without any markdown blocks:\n"
+        "{{\n"
+        "  \"threat_level\": \"High\",\n"
+        "  \"threat_actors\": [\"APT29\", \"Unknown\"],\n"
+        "  \"targeted_entities\": [\"Financial Sector\", \"Healthcare\"],\n"
+        "  \"extracted_iocs\": [\"192.168.1.1\", \"malware.exe\"],\n"
+        "  \"summary\": \"Brief summary of the threat intelligence.\"\n"
+        "}}"
     )
     
     try:

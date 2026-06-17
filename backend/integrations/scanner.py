@@ -49,7 +49,68 @@ def resolve_domain(domain: str) -> str:
     except Exception:
         return domain
 
+import aiohttp
 from integrations.firecrawl_parser import scrape_with_firecrawl
+from integrations.ai_agents import (
+    predict_threat_model, 
+    simulate_attack_path, 
+    generate_auto_remediation, 
+    analyze_osint_data
+)
+
+TECH_CPE_MAP = {
+    'jQuery': {'vendor': 'jquery', 'product': 'jquery'},
+    'WordPress': {'vendor': 'wordpress', 'product': 'wordpress'},
+    'React': {'vendor': 'facebook', 'product': 'react'},
+    'Angular': {'vendor': 'google', 'product': 'angular'},
+    'Vue.js': {'vendor': 'vuejs', 'product': 'vue'},
+    'Next.js': {'vendor': 'vercel', 'product': 'next.js'},
+    'Bootstrap': {'vendor': 'getbootstrap', 'product': 'bootstrap'},
+    'Drupal': {'vendor': 'drupal', 'product': 'drupal'},
+    'PHP': {'vendor': 'php', 'product': 'php'},
+    'Nginx': {'vendor': 'f5', 'product': 'nginx'},
+    'ASP.NET': {'vendor': 'microsoft', 'product': 'asp.net'},
+    'Shopify': {'vendor': 'shopify', 'product': 'shopify'},
+    'HubSpot': {'vendor': 'hubspot', 'product': 'hubspot'},
+    'Stripe': {'vendor': 'stripe', 'product': 'stripe'},
+}
+
+async def fetch_nvd_cves(technologies: list) -> list:
+    all_cves = []
+    async with aiohttp.ClientSession() as session:
+        for tech in technologies:
+            cpe_info = TECH_CPE_MAP.get(tech)
+            if not cpe_info: continue
+            
+            keyword = f"{cpe_info['vendor']} {cpe_info['product']}"
+            url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch={keyword}&resultsPerPage=5"
+            
+            try:
+                async with session.get(url, headers={'User-Agent': 'OmniGuard/1.0'}) as resp:
+                    if resp.status != 200: continue
+                    data = await resp.json()
+                    for v in data.get("vulnerabilities", []):
+                        cve = v.get("cve", {})
+                        cvss = cve.get("metrics", {}).get("cvssMetricV31", [{}])[0].get("cvssData", {})
+                        if not cvss:
+                            cvss = cve.get("metrics", {}).get("cvssMetricV30", [{}])[0].get("cvssData", {})
+                        
+                        all_cves.append({
+                            "title": cve.get("id", "Unknown CVE"),
+                            "description": next((d.get("value") for d in cve.get("descriptions", []) if d.get("lang") == "en"), "No description"),
+                            "severity": cvss.get("baseSeverity", "Medium").capitalize(),
+                            "category": f"CVE ({tech})",
+                            "cvss_score": cvss.get("baseScore", 5.0),
+                            "details": cve
+                        })
+            except Exception as e:
+                print(f"[NVD] Error fetching {tech}: {e}")
+            
+            await asyncio.sleep(6.5) # Respect NVD 5 req / 30s rate limit
+    
+    # Sort by cvss score and cap at 20
+    all_cves.sort(key=lambda x: x.get("cvss_score", 0), reverse=True)
+    return all_cves[:20]
 
 async def run_scan_pipeline(scan_id: str, domain: str):
     """
@@ -89,7 +150,12 @@ async def run_scan_pipeline(scan_id: str, domain: str):
     rule_findings = fc_result.get("findings", [])
     urls_found = fc_result.get("urls_found", 0)
     
-    # Provide the scraped data to the AI (we don't send the full HTML, it's too big, we send the parsed data)
+    # 1c. [NEW] NVD CVE Lookup
+    print(f"[Scanner] Fetching NVD CVEs for detected technologies: {technologies}...")
+    cve_findings = await fetch_nvd_cves(technologies)
+    rule_findings.extend(cve_findings)
+    
+    # Provide the scraped data to the AI
     recon_data["firecrawl_parsed"] = fc_result.get("parsed_data", {})
     recon_data["technologies_detected"] = technologies
     recon_data["rule_based_findings"] = rule_findings
@@ -111,9 +177,7 @@ async def run_scan_pipeline(scan_id: str, domain: str):
         error_msg = None
 
     # Merge Rule-based findings with AI vulnerabilities
-    # (Ensure we don't have exact duplicates, though AI might word them differently)
     all_findings = []
-    # Convert AI findings to standard format
     for vuln in ai_vulnerabilities:
         all_findings.append({
             "title": vuln.get("title", "AI Finding"),
@@ -122,7 +186,6 @@ async def run_scan_pipeline(scan_id: str, domain: str):
             "category": vuln.get("category", "AI Analysis"),
             "details": vuln
         })
-    # Add Rule findings
     all_findings.extend(rule_findings)
 
     # Calculate final risk score
@@ -136,7 +199,60 @@ async def run_scan_pipeline(scan_id: str, domain: str):
     calculated_risk = sum(get_score(f.get("severity", "Low")) for f in all_findings)
     final_risk_score = min(100, max(ai_risk_score, calculated_risk))
 
-    # 3. Sync to Supabase
+    # ---------------------------------------------------------
+    # 3. [NEW] GRAND UNIFICATION: Run all AI Agents Parallelly
+    # ---------------------------------------------------------
+    print(f"[Scanner] Running Grand Unification AI Agents for {domain}...")
+    
+    asset_data_for_tm = {"technologies": technologies, "ip": ip_addr, "ports": recon_data["ports"]}
+    topology_data_for_em = {"ip": ip_addr, "domain": domain, "ports": recon_data["ports"], "vulnerabilities": all_findings}
+    raw_text_for_osint = json.dumps(recon_data["firecrawl_parsed"])[:10000] # Cap length
+    
+    top_vuln = None
+    for sev in ["Critical", "High", "Medium"]:
+        for f in all_findings:
+            if f.get("severity", "") == sev:
+                top_vuln = f
+                break
+        if top_vuln: break
+        
+    try:
+        # Run agents concurrently
+        tm_task = asyncio.create_task(predict_threat_model(asset_data_for_tm, cve_findings))
+        em_task = asyncio.create_task(simulate_attack_path(topology_data_for_em))
+        osint_task = asyncio.create_task(analyze_osint_data(raw_text_for_osint))
+        
+        rem_task = None
+        if top_vuln:
+            rem_task = asyncio.create_task(generate_auto_remediation(top_vuln, "linux"))
+            
+        tm_result = await tm_task
+        em_result = await em_task
+        osint_result = await osint_task
+        rem_result = await rem_task if rem_task else '{"script": "No critical vulnerabilities to remediate."}'
+        
+        import re
+        def parse_ai_json(text):
+            if isinstance(text, dict): return text
+            try:
+                # Remove markdown formatting if present
+                clean_text = re.sub(r'```json\s*', '', text)
+                clean_text = re.sub(r'```\s*', '', clean_text)
+                return json.loads(clean_text.strip())
+            except Exception:
+                return {"raw_text": text}
+
+        enrichment_data = {
+            "threat_model": parse_ai_json(tm_result),
+            "attack_paths": parse_ai_json(em_result),
+            "osint": parse_ai_json(osint_result),
+            "remediation": parse_ai_json(rem_result)
+        }
+    except Exception as ai_e:
+        print(f"[Scanner] Grand Unification AI Error: {ai_e}")
+        enrichment_data = {"error": str(ai_e)}
+
+    # 4. Sync to Supabase
     if not supabase:
         print("[Scanner] Supabase client not configured! Cannot save results.")
         return
@@ -144,8 +260,6 @@ async def run_scan_pipeline(scan_id: str, domain: str):
     print(f"[Scanner] Saving results to Supabase for scan_id: {scan_id}...")
     
     try:
-        # Update Scan Record
-        # We ensure raw_crawl_data and parsed_data match exactly what frontend expects
         update_data = {
             "status": status,
             "risk_score": final_risk_score,
@@ -154,6 +268,7 @@ async def run_scan_pipeline(scan_id: str, domain: str):
             "technologies": technologies if technologies else ((recon_data.get("shodan_data") or {}).get("os", [])),
             "raw_crawl_data": fc_result.get("raw_crawl_data", recon_data),
             "parsed_data": fc_result.get("parsed_data", ai_result),
+            "enrichment": enrichment_data,  # Insert the Grand Unification data
             "ai_report": ai_report_markdown,
             "updated_at": datetime.utcnow().isoformat()
         }

@@ -41,12 +41,14 @@ const Dashboard = () => {
       for (const t of s.technologies) {
         if (typeof t === 'string' && t.trim()) {
           techCounts[t] = (techCounts[t] || 0) + 1;
-        } else if (typeof t === 'object' && t !== null && t.name) {
-          techCounts[t.name] = (techCounts[t.name] || 0) + 1;
+        } else if (t && typeof t === 'object' && typeof (t as any).name === 'string') {
+          const name = (t as any).name;
+          techCounts[name] = (techCounts[name] || 0) + 1;
         }
       }
-    } else if (typeof s.technologies === 'string' && s.technologies.trim()) {
-      techCounts[s.technologies] = (techCounts[s.technologies] || 0) + 1;
+    } else if (typeof s.technologies === 'string' && (s.technologies as string).trim()) {
+      const techStr = s.technologies as string;
+      techCounts[techStr] = (techCounts[techStr] || 0) + 1;
     }
   }
   const topTechs = Object.entries(techCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
